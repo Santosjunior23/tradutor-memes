@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Memes adultos em português</title>
+<meta name="rating" content="RTA-5042-1996-1400-1577-RTA">
+<meta name="robots" content="noindex">
+<style>
+:root{--bg:#e9eef2;--ink:#14213d;--card:#fff;--line:#c9d3dc;--accent:#0b6e4f;--hi:#ffc400;--muted:#55667a}
+*{box-sizing:border-box;margin:0}
+[hidden]{display:none!important}
+body{font:16px/1.5 system-ui,sans-serif;background:var(--bg);color:var(--ink);padding:1.5rem 1rem}
+main{max-width:1100px;margin:auto}
+h1{font:400 clamp(2rem,6vw,3.4rem)/1 Impact,"Arial Narrow",sans-serif;letter-spacing:.02em;text-shadow:2px 2px 0 var(--hi)}
+.sub{color:var(--muted);margin:.6rem 0 1.5rem;max-width:62ch}
+.grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.3fr);gap:1.25rem;align-items:start}
+@media(max-width:800px){.grid{grid-template-columns:1fr}}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:1.1rem}
+#drop{border:2px dashed var(--line);border-radius:10px;padding:1.5rem;text-align:center;cursor:pointer;color:var(--muted)}
+#drop.over{border-color:var(--accent);background:#eef8f3}
+#drop:focus-visible,button:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px solid var(--hi);outline-offset:2px}
+#thumb{max-width:100%;max-height:260px;display:none;margin:.8rem auto 0;border-radius:6px}
+label{display:block;font-weight:600;margin:1rem 0 .3rem}
+select,textarea,input{width:100%;padding:.6rem;border:1px solid var(--line);border-radius:6px;font:inherit;background:#fff;color:inherit}
+textarea{resize:vertical;min-height:3.2rem}
+button{font:inherit;font-weight:700;border:0;border-radius:6px;padding:.75rem 1rem;background:var(--accent);color:#fff;cursor:pointer;margin-top:1rem;width:100%}
+button.sec{background:var(--ink)}
+button:disabled{opacity:.5;cursor:not-allowed}
+#status{margin-top:.8rem;font-size:.9rem;color:var(--muted);min-height:1.4rem}
+#out{max-width:100%;height:auto;border-radius:6px;display:none;margin:0 auto}
+#blocks{margin-top:1rem}
+.blk{margin-top:.8rem}
+.blk small{color:var(--muted);display:block;margin-bottom:.2rem}
+#empty{color:var(--muted)}
+h2{font-size:1.2rem;margin-bottom:.3rem}
+#falhas{white-space:pre-wrap;font-size:.85rem;color:#9b1c1c;margin-top:.6rem}
+.libgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:1rem;margin-top:1rem}
+figure.card{border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#fff}
+figure.card img{width:100%;display:block}
+figcaption{padding:.5rem .7rem;font-size:.85rem;color:var(--muted)}
+a{color:var(--accent)}
+button.mini{margin:0;border-radius:0;padding:.45rem;font-size:.85rem;background:#f3d9d9;color:#7a1414}
+.note{font-size:.85rem;color:var(--muted);margin-top:.5rem}
+</style>
+</head>
+<body>
+<main>
+  <h1>Memes adultos em português</h1>
+  <p class="sub">Painel para traduzir memes adultos (+18) de outros idiomas e montar a biblioteca pública. O texto é lido da imagem, traduzido e desenhado de volta. O conteúdo não é filtrado: o que estiver escrito é traduzido.</p>
+  <div class="grid">
+    <section class="panel">
+      <div id="drop" tabindex="0" role="button" aria-label="Escolher imagem">Arraste um meme aqui, clique para escolher ou cole com Ctrl+V</div>
+      <input type="file" id="file" accept="image/*" hidden>
+      <img id="thumb" alt="Meme original">
+      <label for="lang">Idioma dos memes</label>
+      <select id="lang"></select>
+      <button id="go" disabled>Traduzir esta imagem</button>
+      <label for="urls">Ou importe por link (um por linha)</label>
+      <textarea id="urls" rows="4" placeholder="https://i.imgur.com/exemplo.jpg"></textarea>
+      <button id="goUrls">Importar, traduzir e salvar</button>
+      <div id="status" role="status"></div>
+      <div id="falhas"></div>
+    </section>
+    <section class="panel">
+      <p id="empty">O meme traduzido aparece aqui.</p>
+      <canvas id="out"></canvas>
+      <div id="acoes" hidden>
+        <button id="dl" class="sec">Baixar imagem (PNG)</button>
+        <label for="srcIn">Link de origem (opcional, para dar crédito)</label>
+        <input type="url" id="srcIn" placeholder="https://...">
+        <button id="save">Salvar na biblioteca</button>
+      </div>
+      <div id="blocks"></div>
+    </section>
+  </div>
+<section class="panel" style="margin-top:1.25rem">
+    <h2>Biblioteca</h2>
+    <p id="libInfo" class="note"></p>
+    <div id="lib" class="libgrid"></div>
+    <button id="exp" class="sec" hidden>Exportar site (.zip)</button>
+    <p class="note">O .zip contém uma página pronta com todos os memes. Basta enviá-lo para uma hospedagem estática (GitHub Pages, Netlify, Cloudflare Pages).</p>
+  </section>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<script>
+// t = Tesseract (OCR), c = Chrome Translator, m = NLLB (modelo de reserva)
+const LANGS = {
+  en:{n:'Inglês',t:'eng',c:'en',m:'eng_Latn'}, es:{n:'Espanhol',t:'spa',c:'es',m:'spa_Latn'},
+  fr:{n:'Francês',t:'fra',c:'fr',m:'fra_Latn'}, de:{n:'Alemão',t:'deu',c:'de',m:'deu_Latn'},
+  it:{n:'Italiano',t:'ita',c:'it',m:'ita_Latn'}, nl:{n:'Holandês',t:'nld',c:'nl',m:'nld_Latn'},
+  pl:{n:'Polonês',t:'pol',c:'pl',m:'pol_Latn'}, tr:{n:'Turco',t:'tur',c:'tr',m:'tur_Latn'},
+  ru:{n:'Russo',t:'rus',c:'ru',m:'rus_Cyrl'}, uk:{n:'Ucraniano',t:'ukr',c:'uk',m:'ukr_Cyrl'},
+  ja:{n:'Japonês',t:'jpn',c:'ja',m:'jpn_Jpan'}, ko:{n:'Coreano',t:'kor',c:'ko',m:'kor_Hang'},
+  zh:{n:'Chinês',t:'chi_sim',c:'zh',m:'zho_Hans'}, ar:{n:'Árabe',t:'ara',c:'ar',m:'arb_Arab'},
+  hi:{n:'Hindi',t:'hin',c:'hi',m:'hin_Deva'}
+};
+const $ = id => document.getElementById(id);
+const drop=$('drop'), fileIn=$('file'), thumb=$('thumb'), lang=$('lang'), go=$('go'),
+      out=$('out'), dl=$('dl'), blocksEl=$('blocks');
+const base = document.createElement('canvas');
+let img = null, blocks = [], nllb = null;
+
+for (const [k,v] of Object.entries(LANGS)) lang.add(new Option(v.n, k));
+const setStatus = t => $('status').textContent = t;
+
+// ---------- Entrada da imagem ----------
+function loadFile(f){
+  if (!f || !f.type.startsWith('image/')) return setStatus('Escolha um arquivo de imagem.');
+  const im = new Image();
+  im.onload = () => { img = im; thumb.src = im.src; thumb.style.display = 'block'; go.disabled = false; setStatus('Imagem carregada.'); };
+  if (thumb.dataset.obj) URL.revokeObjectURL(thumb.dataset.obj);
+  thumb.dataset.obj = URL.createObjectURL(f); im.src = thumb.dataset.obj;
+}
+drop.onclick = () => fileIn.click();
+drop.onkeydown = e => { if (e.key==='Enter' || e.key===' ') { e.preventDefault(); fileIn.click(); } };
+fileIn.onchange = () => { loadFile(fileIn.files[0]); fileIn.value = ''; };
+drop.ondragover = e => { e.preventDefault(); drop.classList.add('over'); };
+drop.ondragleave = () => drop.classList.remove('over');
+drop.ondrop = e => { e.preventDefault(); drop.classList.remove('over'); loadFile(e.dataTransfer.files[0]); };
+document.addEventListener('paste', e => { const f = [...(e.clipboardData?.files || [])].find(f => f.type.startsWith('image/')); if (f) loadFile(f); });
+
+// ---------- Imagem de trabalho (largura entre 900 e 1600 px) ----------
+function drawBase(){
+  const s = img.width < 900 ? 900/img.width : Math.min(1, 1600/img.width);
+  base.width = Math.round(img.width*s); base.height = Math.round(img.height*s);
+  const bx = base.getContext('2d'); bx.fillStyle = '#fff'; bx.fillRect(0,0,base.width,base.height); bx.drawImage(img, 0, 0, base.width, base.height);
+}
+// Memes clássicos: texto branco com contorno preto. Deixa só os pixels claros como texto.
+function impactCanvas(){
+  const c = document.createElement('canvas'); c.width = base.width; c.height = base.height;
+  const x = c.getContext('2d'); x.drawImage(base,0,0);
+  const d = x.getImageData(0,0,c.width,c.height), p = d.data;
+  for (let i=0;i<p.length;i+=4){
+    const v = (.299*p[i] + .587*p[i+1] + .114*p[i+2]) > 200 ? 0 : 255;
+    p[i]=p[i+1]=p[i+2]=v;
+  }
+  x.putImageData(d,0,0); return c;
+}
+
+// ---------- OCR ----------
+let ocrW = null, ocrCode = '';
+async function ocr(cv, code){
+  if (typeof Tesseract === 'undefined') throw new Error('Não consegui carregar o OCR (Tesseract). Verifique a conexão.');
+  if (!ocrW || ocrCode !== code) {
+    const old = ocrW; ocrW = null; if (old) await old.terminate();
+    ocrW = await Tesseract.createWorker(code, 1, { logger: m => {
+      setStatus(m.status === 'recognizing text' ? 'Lendo o texto… ' + Math.round(m.progress*100) + '%' : 'Preparando leitura: ' + m.status);
+    }});
+    ocrCode = code;
+  }
+  const { data } = await ocrW.recognize(cv);
+  return (data.paragraphs || [])
+    .filter(p => p.confidence > 45 && /\p{L}{2}/u.test(p.text))
+    .map(p => ({ box: p.bbox, src: p.text.replace(/\s*\n\s*/g,' ').trim() }));
+}
+
+// ---------- Tradução: Chrome (no aparelho) ou modelo NLLB no navegador ----------
+const trCache = {};
+function chromeTr(L){
+  if (!('Translator' in self)) return Promise.resolve(null);
+  return trCache[L.c] ||= (async () => {
+    try {
+      const opt = { sourceLanguage: L.c, targetLanguage: 'pt' };
+      if (await Translator.availability(opt) === 'unavailable') return null;
+      return await Translator.create({ ...opt, monitor(m){
+        m.addEventListener('downloadprogress', e => setStatus('Baixando idioma no Chrome… ' + Math.round(e.loaded*100) + '%'));
+      }});
+    } catch (e) { console.warn('Translator do Chrome falhou, usando modelo de reserva', e); delete trCache[L.c]; return null; }
+  })();
+}
+async function traduzir(textos, L){
+  const tr = await chromeTr(L);
+  if (tr) { const r = []; for (const t of textos) r.push(await tr.translate(t)); return r; }
+  setStatus('Carregando modelo de tradução (grande, só na primeira vez)…');
+  if (!nllb) {
+    const { pipeline } = await import('https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.0.2');
+    nllb = await pipeline('translation', 'Xenova/nllb-200-distilled-600M', {
+      progress_callback: p => { if (p.status === 'progress') setStatus('Baixando modelo… ' + Math.round(p.progress) + '%'); }
+    });
+  }
+  const r = [];
+  for (const t of textos) r.push((await nllb(t, { src_lang: L.m, tgt_lang: 'por_Latn', max_length: 200 }))[0].translation_text);
+  return r;
+}
+
+// ---------- Redesenho ----------
+function ring(x,y,w,h){
+  const bc = base.getContext('2d'), t = 4; let r=0,g=0,b=0,n=0;
+  for (let [sx,sy,sw,sh] of [[x,y-t,w,t],[x,y+h,w,t],[x-t,y,t,h],[x+w,y,t,h]]) {
+    sx=Math.max(0,sx); sy=Math.max(0,sy); sw=Math.min(base.width-sx,sw); sh=Math.min(base.height-sy,sh);
+    if (sw<=0 || sh<=0) continue;
+    const d = bc.getImageData(sx,sy,sw,sh).data;
+    for (let i=0;i<d.length;i+=4){ r+=d[i]; g+=d[i+1]; b+=d[i+2]; n++; }
+  }
+  return n ? [r/n|0, g/n|0, b/n|0] : [255,255,255];
+}
+function wrap(ctx, text, maxW){
+  const lines = []; let cur = '';
+  for (const wd of text.split(/\s+/)) {
+    const t = cur ? cur + ' ' + wd : wd;
+    if (ctx.measureText(t).width > maxW && cur) { lines.push(cur); cur = wd; } else cur = t;
+  }
+  if (cur) lines.push(cur); return lines;
+}
+function fit(ctx, text, x, y, w, h, fg, st){
+  if (!text.trim()) return;
+  const fam = 'Impact,"Arial Black",Arial,sans-serif';
+  let size = Math.max(10, Math.min(h, w/2)), lines = [text];
+  for (; size >= 9; size -= 2) {
+    ctx.font = size + 'px ' + fam;
+    lines = wrap(ctx, text, w-8);
+    if (lines.length*size*1.1 <= h*1.25 && lines.every(l => ctx.measureText(l).width <= w-8)) break;
+  }
+  ctx.font = size + 'px ' + fam; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.lineJoin = 'round'; ctx.lineWidth = Math.max(2, size/9); ctx.strokeStyle = st; ctx.fillStyle = fg;
+  const lh = size*1.1, top = y + h/2 - (lines.length-1)*lh/2;
+  lines.forEach((l,i) => { ctx.strokeText(l, x+w/2, top+i*lh); ctx.fillText(l, x+w/2, top+i*lh); });
+}
+function render(){
+  const ctx = out.getContext('2d');
+  out.width = base.width; out.height = base.height;
+  ctx.drawImage(base,0,0);
+  const pad = Math.round(base.height*.008) + 4;
+  for (const b of blocks) {
+    const {x0,y0,x1,y1} = b.box;
+    const x = Math.max(0,x0-pad), y = Math.max(0,y0-pad);
+    const w = Math.min(out.width,x1+pad)-x, h = Math.min(out.height,y1+pad)-y;
+    const bg = ring(x,y,w,h), light = (.299*bg[0] + .587*bg[1] + .114*bg[2]) > 140;
+    ctx.fillStyle = `rgb(${bg})`; ctx.fillRect(x,y,w,h);
+    fit(ctx, b.pt || '', x,y,w,h, light ? '#111' : '#fff', light ? '#fff' : '#000');
+  }
+  out.style.display = 'block'; $('empty').hidden = true;
+}
+function listBlocks(){
+  blocksEl.replaceChildren();
+  blocks.forEach(b => {
+    const d = document.createElement('div'); d.className = 'blk';
+    const s = document.createElement('small'); s.textContent = 'Original: ' + b.src;
+    const t = document.createElement('textarea'); t.value = b.pt; t.setAttribute('aria-label', 'Tradução');
+    t.oninput = () => { b.pt = t.value; render(); };
+    d.append(s, t); blocksEl.append(d);
+  });
+}
+
+// ---------- Biblioteca (IndexedDB, fica neste navegador) ----------
+const dbp = new Promise((ok,err) => { const r = indexedDB.open('memes-pt',1);
+  r.onupgradeneeded = () => r.result.createObjectStore('m',{keyPath:'id'});
+  r.onsuccess = () => ok(r.result); r.onerror = () => err(r.error); });
+const tx = async (mode, fn) => { const db = await dbp; return new Promise((ok,err) => {
+  const t = db.transaction('m',mode), r = fn(t.objectStore('m'));
+  t.oncomplete = () => ok(r && r.result); t.onerror = () => err(t.error); }); };
+const dbAll = () => tx('readonly', s => s.getAll());
+const dbPut = v => tx('readwrite', s => s.put(v));
+const dbDel = k => tx('readwrite', s => s.delete(k));
+const safeLink = s => { try { const u = new URL(s); return /^https?:$/.test(u.protocol) ? u.href : ''; } catch { return ''; } };
+const esc = s => s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+async function miniatura(){
+  const c = document.createElement('canvas'), w = Math.min(420, out.width);
+  c.width = w; c.height = Math.round(out.height * w / out.width);
+  c.getContext('2d').drawImage(out, 0, 0, c.width, c.height);
+  return new Promise(r => c.toBlob(r,'image/jpeg',.8));
+}
+async function guardar(src){
+  const blob = await new Promise(r => out.toBlob(r,'image/jpeg',.92));
+  await dbPut({ id: Date.now().toString(36)+Math.random().toString(36).slice(2,8), blob, thumb: await miniatura(),
+                src: safeLink(src||''), lang: lang.value, data: Date.now() });
+}
+let objUrls = [];
+async function mostrarBiblioteca(){
+  objUrls.forEach(u => URL.revokeObjectURL(u)); objUrls = [];
+  let all;
+  try { all = (await dbAll()).sort((a,b) => b.data-a.data); }
+  catch { $('libInfo').textContent = 'A biblioteca não está disponível neste navegador (modo privado?).'; return; }
+  $('libInfo').textContent = all.length ? all.length + ' meme(s) salvo(s) neste navegador.' : 'Nenhum meme salvo ainda.';
+  $('exp').hidden = !all.length;
+  const g = $('lib'); g.replaceChildren();
+  for (const m of all) {
+    const u = URL.createObjectURL(m.thumb || m.blob); objUrls.push(u);
+    const c = document.createElement('figure'); c.className = 'card';
+    const im = document.createElement('img'); im.src = u; im.loading = 'lazy'; im.alt = 'Meme traduzido para português'; im.style.cursor = 'zoom-in';
+    im.onclick = () => window.open(URL.createObjectURL(m.blob), '_blank');
+    const cap = document.createElement('figcaption'); cap.append('Idioma original: ' + (LANGS[m.lang] ? LANGS[m.lang].n : m.lang));
+    if (m.src) { const a = document.createElement('a'); a.href = m.src; a.textContent = 'fonte'; a.target = '_blank'; a.rel = 'noopener noreferrer'; cap.append(' · ', a); }
+    const del = document.createElement('button'); del.className = 'mini'; del.textContent = 'Excluir';
+    del.onclick = async () => { await dbDel(m.id); mostrarBiblioteca(); };
+    c.append(im, cap, del); g.append(c);
+  }
+}
+
+// Página pública exportada: aviso +18, rótulo RTA e imagens só carregam depois da confirmação
+const pagina = cards => `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="rating" content="RTA-5042-1996-1400-1577-RTA"><title>Memes adultos em português (+18)</title><style>body{font:16px/1.5 system-ui,sans-serif;background:#e9eef2;color:#14213d;margin:0;padding:1.5rem 1rem}main{max-width:1100px;margin:auto}h1{font:400 2.4rem/1 Impact,"Arial Narrow",sans-serif;text-shadow:2px 2px 0 #ffc400}p{color:#55667a;margin:.6rem 0 1.2rem}.g{columns:240px;column-gap:1rem}figure{margin:0 0 1rem;break-inside:avoid;background:#fff;border:1px solid #c9d3dc;border-radius:8px;overflow:hidden}img{width:100%;display:block}figcaption{padding:.4rem .7rem;font-size:.85rem}a{color:#0b6e4f}#gate{position:fixed;inset:0;background:#14213df2;display:grid;place-items:center;text-align:center;color:#fff;padding:1rem;z-index:9}#gate[hidden]{display:none}#gate p{color:#dbe4ee}#gate button{font:inherit;font-weight:700;border:0;border-radius:6px;padding:.75rem 1.4rem;background:#ffc400;color:#14213d;cursor:pointer;margin-right:1rem}#gate a{color:#fff}</style></head><body><div id="gate"><div><h2>Conteúdo para maiores de 18 anos</h2><p>Este site reúne memes de humor adulto. Você tem 18 anos ou mais?</p><button id="sim">Sim, tenho 18+</button><a href="https://www.google.com">Sair</a></div></div><main hidden><h1>Memes adultos em português</h1><p>Memes de outros idiomas, traduzidos automaticamente. Quando a origem é conhecida, há um link para a fonte.</p><div class="g">${cards}</div></main><noscript><p>Ative o JavaScript para ver os memes.</p></noscript><script>function liberar(){document.getElementById('gate').hidden=true;document.querySelector('main').hidden=false;document.querySelectorAll('img[data-src]').forEach(function(i){i.src=i.dataset.src})}try{if(sessionStorage.getItem('v18')==='1')liberar()}catch(e){}document.getElementById('sim').onclick=function(){try{sessionStorage.setItem('v18','1')}catch(e){}liberar()};<\/script></body></html>`;
+$('exp').onclick = async () => {
+  if (typeof JSZip === 'undefined') return setStatus('Não consegui carregar o JSZip. Verifique a conexão.');
+  setStatus('Montando o .zip…');
+  const all = (await dbAll()).sort((a,b) => b.data-a.data), zip = new JSZip(), cards = [];
+  all.forEach((m,i) => {
+    const n = String(i+1).padStart(3,'0') + '.jpg';
+    zip.file('img/' + n, m.blob); zip.file('t/' + n, m.thumb || m.blob);
+    cards.push(`<figure><a href="img/${n}" target="_blank" rel="noopener"><img data-src="t/${n}" loading="lazy" alt="Meme traduzido para português"></a>${m.src ? `<figcaption><a href="${esc(m.src)}" rel="noopener noreferrer">fonte</a></figcaption>` : ''}</figure>`);
+  });
+  zip.file('index.html', pagina(cards.join('\n')));
+  const b = await zip.generateAsync({type:'blob'});
+  const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = 'memes-pt.zip'; a.click();
+  setStatus('Pronto: ' + all.length + ' meme(s) exportado(s).');
+};
+
+// ---------- Fluxo de tradução ----------
+const busy = b => { go.disabled = b || !img; $('goUrls').disabled = b; $('save').disabled = b; };
+async function traduzirImagem(L){
+  drawBase();
+  setStatus('Preparando leitura do texto…');
+  let found = await ocr(base, L.t);
+  if (!found.length) { setStatus('Nada encontrado. Tentando modo texto branco com contorno…'); found = await ocr(impactCanvas(), L.t); }
+  if (!found.length) return null;
+  setStatus('Traduzindo…');
+  const pt = await traduzir(found.map(b => b.src), L);
+  found.forEach((b,i) => b.pt = pt[i]);
+  return found;
+}
+go.onclick = async () => {
+  busy(true); $('acoes').hidden = true;
+  try {
+    const L = LANGS[lang.value];
+    await chromeTr(L); // logo após o clique, para o Chrome permitir baixar o idioma
+    const f = await traduzirImagem(L);
+    if (!f) return setStatus('Não achei texto legível. Tente uma imagem maior ou confira o idioma.');
+    blocks = f; render(); listBlocks(); $('acoes').hidden = false;
+    setStatus(blocks.length + ' trecho(s) traduzido(s). Edite o texto se quiser e salve na biblioteca.');
+  } catch (e) { console.error(e); setStatus('Erro: ' + (e.message || e)); }
+  finally { busy(false); }
+};
+$('save').onclick = async () => {
+  busy(true);
+  try { await guardar($('srcIn').value); await mostrarBiblioteca(); setStatus('Salvo na biblioteca.'); }
+  catch (e) { setStatus('Erro ao salvar: ' + (e.message || e)); }
+  finally { busy(false); }
+};
+
+// ---------- Importar por link (em lote) ----------
+const imagemDeUrl = u => new Promise((ok,err) => {
+  const im = new Image(); im.crossOrigin = 'anonymous';
+  im.onload = () => ok(im);
+  im.onerror = () => err(new Error('não foi possível baixar (o site pode bloquear o uso da imagem em outras páginas)'));
+  im.src = u;
+});
+$('goUrls').onclick = async () => {
+  const urls = [...new Set($('urls').value.split(/\s+/).filter(Boolean))];
+  if (!urls.length) return setStatus('Cole ao menos um link de imagem.');
+  busy(true); $('acoes').hidden = true; $('falhas').textContent = ''; blocksEl.replaceChildren();
+  const falhas = []; let ok = 0, pulados = 0;
+  try {
+    const L = LANGS[lang.value];
+    await chromeTr(L);
+    let ja = new Set(); try { ja = new Set((await dbAll()).map(m => m.src).filter(Boolean)); } catch {}
+    for (const [i,u] of urls.entries()) {
+      setStatus('Meme ' + (i+1) + ' de ' + urls.length + '…');
+      try {
+        if (!safeLink(u)) throw new Error('link inválido');
+        if (ja.has(safeLink(u))) { pulados++; continue; }
+        img = await imagemDeUrl(u); thumb.src = img.src; thumb.style.display = 'block';
+        const f = await traduzirImagem(L);
+        if (!f) throw new Error('nenhum texto legível encontrado');
+        blocks = f; render(); await guardar(u); ok++;
+      } catch (e) { falhas.push(u + ' — ' + (e.message || e)); }
+    }
+  } catch (e) { falhas.push('Erro geral — ' + (e.message || e)); }
+  await mostrarBiblioteca(); busy(false);
+  setStatus(ok + ' salvo(s)' + (pulados ? ', ' + pulados + ' já estava(m) na biblioteca' : '') + ', de ' + urls.length + ' link(s).');
+  if (falhas.length) $('falhas').textContent = 'Não foi possível importar:\n' + falhas.join('\n') + '\n\nSe o site bloqueia, salve a imagem no computador e use "Traduzir esta imagem".';
+};
+
+dl.onclick = () => out.toBlob(b => {
+  const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = 'meme-pt.png'; a.click();
+});
+mostrarBiblioteca();
+</script>
+</body>
+</html>
